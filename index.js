@@ -3,7 +3,7 @@ require("dotenv").config()
 const Banchojs = require("bancho.js")
 const { exit } = require("process");
 const { resolve } = require("uri-js");
-const client = new Banchojs.BanchoClient({username: process.env.OSU_USER, password: process.env.OSU_PASS, apiKey: process.env.API_KEY});
+const client = new Banchojs.BanchoClient({ username: process.env.OSU_USER, password: process.env.OSU_PASS, apiKey: process.env.API_KEY });
 
 /**
  * Class representing auto host bot
@@ -22,7 +22,6 @@ class AutohostBot {
         this._alreadyChosen = [];
         this._currentHost = null;
         this._beatmap = 0;
-        this._lobby = null;
         this._channel = null;
         this._client = client;
         this._gameId = 0;
@@ -32,28 +31,29 @@ class AutohostBot {
         this._startBot();
     }
 
+    get _lobby() {
+        return this._channel ? this._channel.lobby : {};
+    }
+
     /**
      * Start the bot to a given game id, initialize players and setup listeners
      */
-    _startBot() {
-        this._client.connect().then(async () => {
-            console.log("Login successful!");
-
-            // Join multiplayer game
+    async _startBot() {
+        try {
+            await this._client.connect();
             this._channel = await this._client.getChannel(`#mp_${this._gameId}`);
-            await this._channel.join();
-            this._lobby = this._channel.lobby;
 
             this._initializePlayers();
 
-            await Promise.all([
-                this._lobby.setSettings(0, 0, 8),
-                this._lobby.setMods("Freemod", true)
-            ]);
+            await this._lobby.setSettings(0, 0, 8);
+            await this._lobby.setMods("Freemod", true);
+
             console.log(`Multiplayer Link: https://osu.ppy.sh/mp/${this._lobby.id}`);
 
             this._setupListeners();
-        }).catch(console.error)
+        } catch (error) {
+            console.error('Error starting bot', error);
+        }
     }
 
     /**
@@ -77,7 +77,7 @@ class AutohostBot {
             this._addToHostQueue(obj.player.user.username);
 
             this._announceNextHosts();
-        });    
+        });
 
         this._lobby.on("playerLeft", (obj) => {
             this._playerList = this._playerList.filter((value) => {
@@ -87,14 +87,14 @@ class AutohostBot {
             this._alreadyChosen = this._alreadyChosen.filter((value) => {
                 return value !== obj.user.username
             });
-    
+
             this._announceNextHosts();
         });
-    
+
         this._lobby.on("matchFinished", (scores) => {
             this._rotateHost();
         });
-    
+
         this._lobby.on("beatmap", async (beatmap) => {
             if (beatmap == null || !this._beatmapDifficultyRestricted()) {
                 return;
@@ -174,11 +174,11 @@ class AutohostBot {
      */
     _parseLobbyName() {
         if (this._minStars <= 0 && this._maxStars > 0) {
-            this._lobbyName = `${this._lobbyName} | 1-${this._maxStars}*`
+            this._lobbyName = `${this._lobbyName} | 1-${this._maxStars}*`;
         } else if (this._minStars > 0 && this._maxStars <= 0) {
-            this._lobbyName = `${this._lobbyName} | Min: ${this._minStars}*`
+            this._lobbyName = `${this._lobbyName} | Min: ${this._minStars}*`;
         } else if (this._minStars > 0 && this._maxStars > 0) {
-            this._lobbyName = `${this._lobbyName} | ${this._minStars}-${this._maxStars}*`
+            this._lobbyName = `${this._lobbyName} | ${this._minStars}-${this._maxStars}*`;
         }
     }
 
@@ -195,7 +195,7 @@ class AutohostBot {
 
             // Avoid the same host twice in a row if not alone in lobby
             if (nextPlayer == lastHost && (this._playerList.length + this._alreadyChosen.length) > 1) {
-                this._alreadyChosen.push(nextPlayer);    
+                this._alreadyChosen.push(nextPlayer);
                 nextPlayer = this._playerList.shift();
             }
 
@@ -235,7 +235,7 @@ class AutohostBot {
         if (playerListIndex > -1) {
             while (this._playerList.length > 0) {
                 nextPlayer = this._playerList.shift();
-                if (nextPlayer == playerName) {
+                if (nextPlayer === playerName) {
                     this._lobby.setHost(nextPlayer);
                     this._currentHost = nextPlayer;
 
@@ -249,7 +249,7 @@ class AutohostBot {
             }
         }
 
-        if (hostFound == false && alreadyChosenIndex > -1) {
+        if (hostFound === false && alreadyChosenIndex > -1) {
             this._playerList.push(this._alreadyChosen.splice(alreadyChosenIndex, 1));
 
             this._rotateHost();
